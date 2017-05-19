@@ -539,9 +539,9 @@
 				// Load data
 				d3.queue()
 				.defer(d3.json, "worldmap.json")
-				.defer(d3.csv, "data/PandaTimeLine1.csv", parseRow)
-				.defer(d3.csv, "data/pandaTimeline3.csv", parseRow2)
-	      		.defer(d3.csv, "data/pandaTimeline2.csv", parseRow2)
+				.defer(d3.csv, "PandaTimeLine1.csv", parseRow)
+				.defer(d3.csv, "pandaTimeline3.csv", parseRow2)
+	      		.defer(d3.csv, "pandaTimeline2.csv", parseRow2)
 				.await(function(error, rawMap, dataPanda, rawGun,rawGun2) {
 					console.log("Code in the call-back function is only executed when every data file loads.");
 					stateGun = d3.map(rawGun, function (d) {
