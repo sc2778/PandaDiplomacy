@@ -1,0 +1,1146 @@
+<!doctype html>
+<html>
+	<head>
+	<meta charset="UTF-8">
+		<title>pandaDiplomacy</title>
+		<link rel="stylesheet" type="text/css" href="css/style.css">
+		<script src="javascriptlibrary/jquery-3.2.1.min.js"></script>
+		<script src="javascriptlibrary/d3.v4.min.js"></script>
+		<script src="javascriptlibrary/topojson.v2.min.js"></script>
+		<script src="javascriptlibrary/d3-geo-projection.v1.min.js"></script>
+		<script src="javascriptlibrary/d3-tip.js"></script>
+		<script src="javascript/functions.js"></script>
+
+		<script>
+		/* Control Panel between first graph and second */
+	        var graphState = "graph01";
+	        $(document).ready(function() {
+	            $(".icon").click(function() {
+	                if (graphState == "graph01") {
+	                    $("#map").fadeOut(300);
+	                    $("#timelineUpper").fadeOut(300);
+	                    $("#slider").fadeOut(300);
+	                    $("#timelineLower").fadeOut(300);
+	                    $("#secondGraphBox").delay(300).fadeIn(300);
+	                    $("#noDataModal").delay(300).fadeIn(300);
+	                    $("#buttonBox").delay(300).fadeIn(300);
+	                    graphState = "graph02";
+	                }
+	            });
+
+	            $("#toGraph01").click(function() {
+	                if (graphState == "graph02") {
+	                    $("#map").delay(300).fadeIn(300);
+	                    $("#timelineUpper").delay(300).fadeIn(300);
+	                    $("#slider").delay(300).fadeIn(300);
+	                    $("#timelineLower").delay(300).fadeIn(300);
+	                    $("#secondGraphBox").fadeOut(300);
+	                    $("#buttonBox").fadeOut(300);
+	                    $("#noDataModal").fadeOut(300);
+	                    $("#noDataModal2").fadeOut(300);
+	                    d3.selectAll(".activeShadow").attr("class","nonactiveShadow");
+	                    graphState = "graph01";
+	                }
+	            });
+	        });
+	    </script>
+	</head>
+
+	<body>
+
+
+	    <div id="historyModal" class="modal">
+	        <p id="historicTitle">This is the title of historic event.</p>
+	        <div><p id="titleLine"></p></div>
+	        <p id="historicContent">This is the Content of historic event.</p>
+	        <span id="close" onclick="document.getElementById('historyModal').style.display='none'">&times;</span>
+	    </div>
+
+	    <div id="noDataModal">
+	        <p id="nodata">NO DATA</p>
+	    </div>
+
+	    <div id="noDataModal2">
+	        <p id="nodata">NO DATA</p>
+	    </div>
+
+		<!--Everything goes in here-->
+		<div class="container">
+			<div id="buttonBox">
+				<div id="button">
+				<div class="tablinks" id="Military" onclick="changeTab(event, this.id)">Military</div>
+				<div class="tablinks active" id="GDP" onclick="changeTab(event, this.id)">GDP</div>
+				<div class="tablinks" id="Trade" onclick="changeTab(event, this.id)">Trade Balance</div>
+		        <div id="toGraph01">
+			        <img id="toGraphIcon" src="images/globaliconnonfill.png" width="35px" height="35px"/><span>Back to Map</span>
+			    </div>
+		        </div>
+			</div>
+
+			<div id="secondGraphBox">
+		    </div>
+
+			<div id="map"></div>
+			<div id="timelineUpper"></div>
+			<div id="slider">
+				<input width="200" type="range" min="1939" max="2015" value="1" id="year" step="1">
+				<script class="slider">
+
+					var sheet = document.createElement("style"),
+						$rangeInput = $("#year"),
+						prefs = ["webkit-slider-runnable-track"];
+
+					document.body.appendChild(sheet);
+
+					var getTrackStyle = function(el) {
+						var curVal = el.value,
+							range = [1939, 2015],
+							style = "";
+
+						var curPer = ((curVal - range[0])/(range[1] - range[0])) * 100;
+
+						for (var i = 0; i < prefs.length; i++) {
+							style += "#year::-" + prefs[i] + '{background: linear-gradient(to right, #ffad20 0%, #ffad20 ' + curPer + '%, #9d7732 ' + curPer + '%, #9d7732 100%)}';
+						}
+
+						return style;
+					}
+
+					$rangeInput.on('input', function() {
+						sheet.textContent = getTrackStyle(this);
+					})
+
+				</script>
+			</div>
+			<div id="timelineLower"></div>
+
+			<div id="icons">
+				<svg id="countryNav">
+					<filter id="drop-shadow">
+				        <feGaussianBlur in="SourceAlpha" stdDeviation="4"/>
+				        <feOffset dx="0" dy="0" result="offsetblur"/>
+				        <feFlood flood-color="rgba(255,255,255,1)"/>
+				        <feComposite in2="offsetblur" operator="in"/>
+				        <feMerge>
+				            <feMergeNode/>
+				            <feMergeNode in="SourceGraphic"/>
+				        </feMerge>
+				    </filter>
+				</svg>
+			</div>
+		</div>
+
+		<div class="script">
+
+<!--			Start of the Map			-->
+
+			<script class="firstGraph">
+
+				var width = 1220,
+					heightMap = 460,
+					heightNav = 110;
+
+				// Append map svg
+				var map = d3.select("#map")
+					.append("svg")
+					.attr("width", width)
+					.attr("height", heightMap);
+
+			    var countries;
+
+				var color = "#FAA107";
+      			var color_na = "white";
+
+				// Define time variables for later use
+				var timeline = [];
+				var pandaTL= [];
+				var elseYear;
+
+				var countryNav = d3.select("#countryNav")
+					.attr("width", width)
+					.attr("height", heightNav);
+
+				var iconList = ["USA","RUS","DEU","JPN","FRA","MEX","ESP","GBR","AUT","MYS"];
+
+				var widthicon = 125;
+				var heighticon = 110;
+				var xicon = 0;
+				var yicon = 0;
+
+				// Append country maps
+				iconList.forEach(function(icon) {
+					countryNav.append("svg:image")
+						.attr("width", widthicon)
+						.attr("height", heighticon)
+						.attr("class", "nonactiveShadow")
+						.attr("id", icon + "Shadow")
+						.attr("xlink:href", "images/" + icon + ".png")
+       				    .attr("opacity", 1);
+				});
+
+				countryNav.select("#RUSShadow").attr("x",xicon+widthicon).attr("y",yicon);
+			    countryNav.select("#DEUShadow").attr("x",xicon+2*widthicon).attr("y",yicon);
+			    countryNav.select("#JPNShadow").attr("x",xicon+3*widthicon).attr("y",yicon);
+			    countryNav.select("#FRAShadow").attr("x",xicon+4*widthicon).attr("y",yicon);
+			    countryNav.select("#MEXShadow").attr("x",xicon+5*widthicon).attr("y",yicon);
+			    countryNav.select("#ESPShadow").attr("x",xicon+6*widthicon).attr("y",yicon);
+			    countryNav.select("#GBRShadow").attr("x",xicon+7*widthicon).attr("y",yicon);
+			    countryNav.select("#AUTShadow").attr("x",xicon+8*widthicon).attr("y",yicon);
+			    countryNav.select("#MYSShadow").attr("x",xicon+9*widthicon).attr("y",yicon);
+
+				iconList.forEach(function(icon) {
+					countryNav.append("svg:image")
+						.attr("width", widthicon)
+						.attr("height", heighticon)
+						.attr("class", "icon")
+						.attr("id", icon)
+						.attr("xlink:href", "images/" + icon + ".png")
+       				    .attr("opacity", 0.01)
+       				    .on("click", function (d) {countryNow = icon; showTrends(nestedLineData, tab, countryNow); showLinePanda(nestedLinePanda, countryNow); showHistory(nestedHistoryData, countryNow);
+       				    d3.selectAll(".activeShadow").attr("class","nonactiveShadow");
+       				    d3.selectAll("#"+icon+"Shadow").attr("class","activeShadow");});
+				});
+
+				countryNav.select("#RUS").attr("x",xicon+widthicon).attr("y",yicon);
+			    countryNav.select("#DEU").attr("x",xicon+2*widthicon).attr("y",yicon);
+			    countryNav.select("#JPN").attr("x",xicon+3*widthicon).attr("y",yicon);
+			    countryNav.select("#FRA").attr("x",xicon+4*widthicon).attr("y",yicon);
+			    countryNav.select("#MEX").attr("x",xicon+5*widthicon).attr("y",yicon);
+			    countryNav.select("#ESP").attr("x",xicon+6*widthicon).attr("y",yicon);
+			    countryNav.select("#GBR").attr("x",xicon+7*widthicon).attr("y",yicon);
+			    countryNav.select("#AUT").attr("x",xicon+8*widthicon).attr("y",yicon);
+			    countryNav.select("#MYS").attr("x",xicon+9*widthicon).attr("y",yicon);
+
+
+				// Append textbox
+				var noteboard = map.append("g")
+					.attr("class", "noteboard");
+
+				var rectWidth = 305,
+					rectHeight = 310;
+				var rectX = 845,
+					rectY = 110;
+
+				noteboard.append("rect")
+					.attr("width", rectWidth)
+					.attr("height", rectHeight)
+					.attr("x", rectX)
+					.attr("y", rectY)
+					.style("fill", "#181818");
+
+				noteboard.append("line") // append the upper line
+					.attr("x1", 870)
+					.attr("y1", 160)
+					.attr("x2", 1125)
+					.attr("y2", 160)
+					.style("stroke", "#faa107")
+					.style("stroke-width", 3);
+
+				noteboard.append("line") // append the lower line
+					.attr("x1", 870)
+					.attr("y1", 395)
+					.attr("x2", 1125)
+					.attr("y2", 395)
+					.style("stroke", "#faa107")
+					.style("stroke-width", 3);
+
+				noteboard.append("text")
+					.attr("x", rectX+30)
+					.attr("y", rectY+46)
+					.attr("id", "timeStamp")
+					.style("font-size", 15)
+					.style("fill", "#faa107")
+					.style("text-anchor", "start")
+					.text("1939");
+
+				noteboard.append("text")
+					.attr("x", rectX+275)
+					.attr("y", rectY+46)
+					.attr("id", "countryName")
+					.style("font-size", 25)
+					.style("fill", "#faa107")
+					.style("text-anchor", "end")
+					.text("");
+
+				// if no panda was found in that year
+				noteboard.append("text")
+					.attr("x", rectX+150)
+					.attr("y", rectY+145)
+					.attr("id", "content")
+					.attr("font-size", 18)
+					.attr("opacity",1)
+					.style("fill", "#faa107")
+					.style("text-anchor", "middle")
+					.text("404 no panda")
+					.append("tspan")
+					.attr("x", rectX+150)
+					.attr("dy", 22)
+					.style("text-anchor", "middle")
+					.text("has been sent.");
+
+				var fObject = noteboard.append("foreignObject")
+					.attr("x", rectX+25)
+					.attr("y", rectY+60)
+	                .attr("width", 250)
+	                .attr("height", 250);
+
+	            fObject.append("xhtml:p")
+	                .attr("class","yoyo")
+	                .attr("xmlns","http://www.w3.org/1999/xhtml")
+	                .style("color","white")
+	                .style("font-size","15px")
+					.style("font-family", "Avenir Next")
+					.attr("text-align","left")
+
+				var next = noteboard.append("image")
+					.attr("x", rectX+280)
+					.attr("y", rectY+150)
+					.attr("width", 20)
+					.attr("height", 20)
+					.attr("class", "slideshow next")
+					.style("opacity", 0)
+					.attr("xlink:href", "images/arrow-point-to-right.png");
+
+				var back = noteboard.append("image")
+					.attr("x", rectX+8)
+					.attr("y", rectY+150)
+					.attr("width", 20)
+					.attr("height", 20)
+					.attr("class", "slideshow back")
+					.style("opacity", 0)
+					.attr("xlink:href", "images/arrow-point-to-left.png");
+
+	//==============================================================================
+
+				// Update text
+				function updateText(data, time) {
+					var index = 0;
+
+					// Append contents for years with pandas
+					for (var i = 0; i < data.length; i++) {
+						if (+(data[i].key) == time) {
+							noteboard.select("#content").attr("opacity",0);
+							if (data[i].values.length == 2) {
+
+								noteboard.select("#countryName").text(data[i].values[index].Country);
+								noteboard.select(".yoyo").text(data[i].values[index].Text);
+
+								var duplicate = data[i].values;
+
+								next.style("opacity", 1)
+									.on("click", function() {
+
+										if (index == 0) {
+											index = 1;
+										}
+										noteboard.select("#countryName").text(duplicate[index].Country);
+										noteboard.select(".yoyo").text(duplicate[index].Text);
+
+										back.style("opacity", 1);
+										next.style("opacity", 0)
+
+									});
+
+								back.on("click", function() {
+
+										if (index == 1) {
+											index = 0;
+										}
+
+										noteboard.select("#countryName").text(duplicate[index].Country);
+										noteboard.select(".yoyo").text(duplicate[index].Text);
+
+										back.style("opacity", 0);
+										next.style("opacity", 1)
+									});
+
+							} else {
+
+								noteboard.selectAll(".slideshow").style("opacity", 0);
+								noteboard.select("#countryName").text(data[i].values[index].Country);
+								noteboard.select(".yoyo").text(data[i].values[index].Text);
+								noteboard.select("#content").attr("opacity",0);
+
+							}
+
+						}
+
+					}
+
+					// Append years without pandas
+					for (var j = 0; j < elseYear.length; j++) {
+						if (elseYear[j] == time) {
+							noteboard.select("#content").attr("opacity",1);
+							noteboard.selectAll(".slideshow").style("opacity", 0);
+							noteboard.select("#countryName").text("");
+							noteboard.select(".yoyo").text("");
+						}
+					}
+
+				}
+
+
+				var projection2 = d3.geoMercator().scale(130).translate([382,300]);
+				var china = projection2([105, 40]);
+//==============================================================================
+
+				// Function to get data by country and year
+				function selectData(pandaCandT, time) {
+					var pandalist = [];
+					pandaCandT.forEach(function(countryEntry) {
+						pandalist[countryEntry.key] = [];
+						countryEntry.values.forEach(function(timeEntry) {
+							if (timeEntry.key == time) {
+								timeEntry.values.forEach(function(dataEntry) {
+									pandalist[countryEntry.key].push(dataEntry);
+								})
+							}
+						})
+					})
+
+					return pandalist;
+				}
+
+				var num=1;
+				function pandaMap(pandaCandT, inputYear, countryAbbr) {
+
+					var selectedPanda = selectData(pandaCandT, inputYear);
+
+					var china = projection([105, 40])
+
+					// append panda for each country
+					countryAbbr.forEach(function(country) {
+						selectedPanda[country].forEach(function(d) {
+								var yoyo2 = num-1;
+								map.select("#yoyo"+ yoyo2)
+								.transition().duration(500)
+									.attr("x", projection(d.Geolocation)[0])
+									.attr("y", projection(d.Geolocation)[1])
+									.transition().duration(500)
+									.attr("opacity",0);
+
+									var pandas2 = map.append("svg:image")
+										.attr("class", "pandaGroup")
+										.attr("id","yoyo"+num)
+										.attr("xlink:href", "images/pandahead.png")
+										.attr("width", 20)
+										.attr("height", 20)
+										.attr("x", china[0])
+										.attr("y", china[1]);
+										num=num+1;
+
+						})
+
+					})
+
+				}
+
+//==============================================================================
+
+				// Append upper timeline
+				var upperTL = d3.select("#timelineUpper")
+					.append("svg")
+					.attr("width", width)
+					.attr("height", 10);
+
+				// Append lower timeline
+				var lowerTL = d3.select("#timelineLower")
+					.append("svg")
+					.attr("width", width)
+					.attr("height", 110);
+
+				for (var i = 1939; i < 2016; i++) {
+					timeline.push(i);
+				};
+
+				var timelineScale = d3.scaleLinear()
+					.domain(d3.extent(timeline, function(d) { return d;}))
+					.range([8, width - 8]);
+
+				// Append timetime
+				timeline.forEach(function(d) {
+
+					if (d%5 === 0) {
+						lowerTL.append("rect")
+							.attr("x", timelineScale(d) - 2)
+							.attr("y", 5)
+							.attr("width", 4)
+							.attr("height", 20)
+							.style("fill", "#9d7732")
+							.style("opacity", .5);
+					} else {
+						lowerTL.append("rect")
+							.attr("x", timelineScale(d) - 1)
+							.attr("y", 8)
+							.attr("width", 2)
+							.attr("height", 12)
+							.style("fill", "#9d7732")
+							.style("opacity", .5);
+					};
+
+					if (d%10 === 0) {
+						lowerTL.append("text")
+							.attr("x", timelineScale(d))
+							.attr("y", 50)
+							.attr("text-anchor", "middle")
+							.style("fill", "#ffad20")
+							.style("letter-spacing", 2)
+							.style("font-size", 17)
+							.style("font-family", "Avenir Next")
+							.text(d);
+					};
+
+				});
+
+				function showIndicator() {
+
+					// Show panda indicators
+					pandaTL.forEach(function(d) {
+						upperTL.append("svg:image")
+							.attr("x", timelineScale(d) - 6)
+							.attr("y", 0)
+							.attr("width", 12)
+							.attr("xlink:href", "images/triangleDown.png");
+					});
+				}
+
+//==============================================================================
+
+				// Generate map
+				var projection = d3.geoMercator().scale(130).translate([382,300]);
+
+				var path = d3.geoPath().projection(projection);
+
+				var stateGun;
+				var stateGun2;
+				var datatext1;
+				var countryAbbr = [];
+				var pandaTime;
+
+				// Parse data from panda
+				function parseRow(row) {
+					row.Year = +row.Year;
+					var geo = row.Geolocation;
+						geo = geo.substring(1, geo.length - 1);
+						geo = geo.split(",");
+						geo[0] = +geo[0];
+						geo[1] = +geo[1];
+						row.Geolocation = geo;
+
+					return row;
+				};
+
+				//read data
+			 	var parseRow2 = function(row) {
+					row.id = row.id;
+					return row;
+			 	};
+
+				// Load data
+				d3.queue()
+				.defer(d3.json, "worldmap.json")
+				.defer(d3.csv, "data/PandaTimeLine1.csv", parseRow)
+				.defer(d3.csv, "data/pandaTimeline3.csv", parseRow2)
+	      		.defer(d3.csv, "data/pandaTimeline2.csv", parseRow2)
+				.await(function(error, rawMap, dataPanda, rawGun,rawGun2) {
+					console.log("Code in the call-back function is only executed when every data file loads.");
+					stateGun = d3.map(rawGun, function (d) {
+	      				return d.id;
+	      			});
+					stateGun2 = d3.map(rawGun2, function (d) {
+	      				return d.id;
+	      			});
+							datatext1 = dataPanda;
+					d3.json("worldmap.json", function(error, data) {
+						map.selectAll("path")
+							.data(data.features)
+							.enter()
+							.append("path")
+							.attr("stroke", "white")
+							.attr("fill", function(d){
+								if (d.id == "CHN") {
+									return "#DB2C1F"
+								} else {
+									return "white";
+								}
+						})
+							.attr("d", path)
+							.on("click", function (d) { console.log(d.id); })
+							.attr("id", function(d) { return d.id; })
+
+							var pandas = map.append("svg:image")
+								.attr("class", "pandaGroup")
+								.attr("id","yoyo0")
+								.attr("xlink:href", "images/pandahead.png")
+								.attr("width", 20)
+								.attr("height", 20)
+								.attr("x", china[0])
+								.attr("y", china[1]);
+
+								//append invisible panda
+								datatext1.forEach(function(d){
+									map.append("svg:image")
+										.attr("class", "pandaGroup")
+										.attr("id","panda" + d.Code)
+										.attr("xlink:href", "images/pandahead.png")
+										.attr("width", 20)
+										.attr("height", 20)
+										.attr("x", projection(d.Geolocation)[0])
+										.attr("y", projection(d.Geolocation)[1])
+										.attr("opacity",0)});
+					});
+
+					var pandaByCountry = d3.nest()
+					.key(function(d) { return d.Code; })
+					.entries(dataPanda);
+
+					var countryAbbr = [];
+					pandaByCountry.forEach(function(d) {
+						countryAbbr.push(d.key);
+
+					});
+
+					var pandaCandT = d3.nest()
+						.key(function(d) { return d.Code; })
+						.key(function(d) { return d.Year; })
+						.entries(dataPanda);
+
+					pandaTime = d3.nest()
+						.key(function(d) { return d.Year})
+						.entries(dataPanda);
+
+					pandaTime.forEach(function(d) {
+						pandaTL.push(+d.key);
+					});
+
+					// Get years without pandas
+					function getUnique(arr1, arr2) {
+						var tmp = [];
+
+						for (var i = 0; i < arr1.length; i++) {
+							var tempBoolean = true;
+							for (var j = 0; j < arr2.length; j++) {
+								if (arr1[i] == arr2[j])
+									tempBoolean = false;
+							}
+							if (tempBoolean==true) tmp.push(arr1[i]);
+						}
+
+						return tmp;
+					};
+
+					elseYear = getUnique(timeline, pandaTL);
+
+					// Call slider
+					var slider = d3.select("#year");
+				    var inputYear = parseInt(slider.property("value"));
+
+				    slider.on("input", function() {
+							updateMap(color, stateGun["$"+this.value]);
+							updateIcon(1,stateGun2["$"+this.value]);
+						inputYear = parseInt(slider.property("value"));
+						updateText(pandaTime, inputYear);
+						updatepanda(stateGun["$"+this.value],this.value)
+
+						pandaMap(pandaCandT, inputYear, countryAbbr);
+						d3.select("#timeStamp").text(inputYear);
+					})
+
+					showIndicator();
+
+				});
+
+
+			</script>
+
+<!--			End of the Map			-->
+
+
+
+
+
+<!--			Start of the Graph 			-->
+
+			<script class="secondGraph">
+			var tab = "GDP";
+	        var countryNow = "USA";
+	        var secondSVGwidth = 1300; //px
+	        var secondSVGheight = 540; //px
+	        var yearDomainLeft = 1939; //year
+	        var yearDomainRight = 2020; //year
+	        var formatYear = d3.format("d");
+	        var lineGraphTop = 40;
+	        var lineGraphBottom = 340;
+	        var yellowAxisPosition = 390;
+	        var textYPosition = 412;
+
+
+	        var modal = d3.select('#historyModal');
+	        var historicTitle = d3.select('#historicTitle');
+	        var historicContent = d3.select('#historicContent');
+
+	        var svgSecondGraph = d3.select("#secondGraphBox")
+	            .append("svg")
+	            .attr("width", secondSVGwidth)
+	            .attr("height", secondSVGheight);
+	        var plot = svgSecondGraph.append("g");
+	        var historyAxis = svgSecondGraph.append("g");
+
+	        var yellowAxis = historyAxis.append("rect")
+	            .attr("width",secondSVGwidth-175)
+	            .attr("height",2)
+	            .attr("x",75)
+	            .attr("y",yellowAxisPosition)
+	            .attr("fill","rgba(250, 161, 7, 0.62)");
+
+	        var YPSequence = [0, 74, 38];
+
+
+	        var yearScale = d3.scaleLinear().domain([yearDomainLeft, yearDomainRight])
+	            .range([75, secondSVGwidth-100]);
+	        var xAxis = d3.axisBottom(yearScale).tickFormat(formatYear);
+	        svgSecondGraph.append("g")
+	            .attr("class", "axis")
+	            .attr("transform", "translate(0, " + (secondSVGheight-40) +")")
+	            .call(xAxis);
+
+	        var nestedLineData;
+	        var nestedHistoryData;
+
+	    	var ease = d3.transition()
+	            .duration(750)
+	            .ease(d3.easeLinear);
+
+	        // Legend Icon and Text
+	        var chinaLegend = svgSecondGraph.append("rect")
+	        	.attr("width",20)
+	            .attr("height",20)
+	            .attr("x",1130)
+	            .attr("y",311)
+	            .attr("fill","rgba(0, 0, 0, 1)");
+
+	        var foreignLegend = svgSecondGraph.append("rect")
+	        	.attr("width",20)
+	            .attr("height",20)
+	            .attr("x",1130)
+	            .attr("y",351)
+	            .attr("fill","rgba(255, 255, 255, 1)");
+
+	        var chinaLegendText = svgSecondGraph.append("text")
+	            .attr("x",1160)
+	            .attr("y",326)
+	            .attr("fill","rgba(0, 0, 0, 1)")
+	            .text("China")
+	            .style("font-size","16px");
+
+	        var foreignLegendText = svgSecondGraph.append("text")
+	            .attr("x",1160)
+	            .attr("y",366)
+	            .attr("fill","rgba(255, 255, 255, 1)")
+	            .text("Foreign")
+	            .style("font-size","16px");
+
+	        var tradeText01 = svgSecondGraph.append("text")
+	            .attr("x",1154)
+	            .attr("y",326)
+	            .attr("fill","rgba(255, 255, 255, 1)")
+	            .text("*China")
+	            .style("font-size","16px")
+	            .style("display","none");
+
+	        var tradeText02 = svgSecondGraph.append("text")
+	            .attr("x",1175)
+	            .attr("y",346)
+	            .attr("fill","rgba(255, 255, 255, 1)")
+	            .text("to")
+	            .style("font-size","16px")
+	            .style("display","none");
+
+	        // format the large numbers
+	            function formatValue(d) {
+
+	                var absNum = Math.abs(d);
+
+	                if (absNum > 0 && absNum < 1e+6) {
+	                    return "$ " + Math.floor(d/(1e+3))+ "K";
+	                } else if (absNum > 1e+6 && absNum < 1e+9) {
+	                    return "$ " + Math.floor(d/(1e+6)) + "M";
+	                } else if (absNum > 1e+9 && absNum < 1e+12) {
+	                    return "$ " + Math.floor(d/(1e+9)) + "B";
+	                } else {
+	                    return "$ " + Math.floor (d/(1e+12)) + "T";
+	                }
+	            }
+
+	        function formatNum(d) {
+
+				var absNum = Math.abs(d);
+
+				if (absNum > 0 && absNum < 1e+6) {
+					return (d/(1e+3)).toFixed(3) + " Thousand";
+				} else if (absNum > 1e+6 && absNum < 1e+9) {
+					return (d/(1e+6)).toFixed(3) + " Million";
+				} else if (absNum > 1e+9 && absNum < 1e+12) {
+					return (d/(1e+9)).toFixed(3) + " Billion";
+				} else {
+					return (d/(1e+12)).toFixed(3) + " Trillion";
+				}
+			};
+
+
+	        function parseLineLineGraph (line) {
+	            line.Year = Number(line.Year);
+	            line.GDP = Number(line.GDP);
+	            line.Military = Number(line.Military*1e+6);
+	            line.Trade = Number(line.Trade);
+	            return line;
+	        }
+
+	        function parseLineHistoryEvents (line) {
+	            line.Year = Number(line.Year);
+	            return line;
+	        }
+
+	        function make_y_gridlines(scale) {
+	            return d3.axisLeft(scale)
+	                .ticks(5)
+	        }
+
+			function changeTab(evt, value) {
+                tablinks = document.getElementsByClassName("tablinks");
+                for (i = 0; i < tablinks.length; i++) {
+                    tablinks[i].className = tablinks[i].className.replace(" active", "");
+                }
+                tab = value;
+                showTrends(nestedLineData, tab, countryNow);
+                showLinePanda(nestedLinePanda, countryNow);
+                evt.currentTarget.className += " active";
+            }
+
+
+
+
+	        d3.queue()
+				.defer(d3.tsv, "countrydata.txt", parseLineLineGraph)
+				.defer(d3.tsv, "Historyevents.txt", parseLineHistoryEvents)
+				.defer(d3.csv, "PandaTimeLine1.csv", parseRow)
+				.await(function(error, rawCountryLine, rawHistory, dataPanda) {
+
+		            nestedLineData = d3.nest()
+		            .key(function (d) { return d.Code; })
+		            .entries(rawCountryLine);
+		            showTrends(nestedLineData, tab, countryNow);
+
+		            nestedHistoryData = d3.nest()
+		            .key(function (d) { return d.Code; })
+		            .entries(rawHistory);
+		            showHistory(nestedHistoryData, countryNow);
+
+		            nestedLinePanda = d3.nest()
+					.key(function(d) { return d.Code; })
+					.entries(dataPanda);
+					showLinePanda(nestedLinePanda, countryNow);
+
+				})
+
+			function showLinePanda(data, country) {
+				svgSecondGraph.selectAll(".linePandas").remove();
+				svgSecondGraph.append("g").attr("class", "linePandas");
+
+				var pandaCountryYear;
+
+	            data.forEach(function(d) {
+	                if (d.key==country) { pandaCountryYear = d.values; }
+	            })
+
+	            pandaCountryYear.forEach(function(d) {
+	            	d3.select(".linePandas")
+					.append("line")
+					.attr("x1", yearScale(d.Year))
+					.attr("y1", lineGraphTop+10)
+					.attr("x2", yearScale(d.Year))
+					.attr("y2", lineGraphBottom+50)
+					.style("stroke", "#b0802a")
+					.style("opacity", .7);
+
+	            	d3.select(".linePandas")
+					.append("svg:image")
+					.attr("width", 40)
+					.attr("height", 40)
+					.attr("x", yearScale(d.Year) - 20)
+					.attr("y", lineGraphBottom+10)
+					.attr("xlink:href", "images/panda.png");
+
+	            })
+			}
+
+
+			function showTrends(data, parameter, country_Compare) {
+	            svgSecondGraph.selectAll(".axisY").remove();
+	            svgSecondGraph.selectAll(".tick").remove();
+	            svgSecondGraph.selectAll(".groupCN").remove();
+	            svgSecondGraph.selectAll(".d3-tip n").remove();
+
+	            plot.selectAll("path").remove();
+
+	            if (country_Compare=="RUS") {d3.select("#noDataModal2").style("display","block");}
+	            else {d3.select("#noDataModal2").style("display","none");}
+
+	            if (tab=="Military") {
+					d3.select("#noDataModal").style("width","0px");
+					chinaLegend.style("display","block");
+					chinaLegendText.style("display","block");
+				}
+				if (tab=="GDP") {
+					d3.select("#noDataModal").style("width",(yearScale(1959)-yearScale(1939))+"0px");
+					chinaLegend.style("display","block");
+					chinaLegendText.style("display","block");
+				}
+				if (tab=="Trade") {
+					d3.select("#noDataModal").style("width",(yearScale(1991)-yearScale(1939))+"0px");
+					chinaLegend.style("display","none");
+					chinaLegendText.style("display","none");
+				}
+
+	            var paraMax = 0;
+	            var paraMin = 0;
+	            data.forEach(function(country) {
+	                if (country.key == country_Compare || country.key == "CHN") {
+	                    countryData = country.values;
+	                    countryData.forEach(function(instance) {
+	                        if (instance[parameter] > paraMax) {paraMax=instance[parameter];}
+	                        if (instance[parameter] < paraMin) {paraMin=instance[parameter];}
+	                    });
+	                }
+	            });
+	            if (parameter=="Trade") {
+	            	tradeText01.style("display","block");
+	            	tradeText02.style("display","block");
+	            	foreignLegend.style("display","none");
+	                if (Math.abs(paraMax)>Math.abs(paraMin)) {
+	                    paraMin = -paraMax;
+	                } else {
+	                    paraMax = -paraMin;
+	                }
+	            } else {
+	            	tradeText01.style("display","none");
+	            	tradeText02.style("display","none");
+	            	foreignLegend.style("display","block");
+	            }
+	            var paraScale = d3.scaleLinear().domain([paraMin, paraMax])
+	            .range([lineGraphBottom, lineGraphTop]);
+
+
+	            var chinaData;
+	            var foreignData;
+	            data.forEach(function(d) {
+	                if (d.key=="CHN") { chinaData = d.values; }
+	                if (d.key==country_Compare) { foreignData = d.values; }
+	            })
+
+	            var foreignName = foreignData[0].Country;
+	            foreignLegendText.text(foreignName);
+
+
+	            var yAxis = d3.axisLeft(paraScale).ticks([5]).tickFormat(formatValue);
+	            svgSecondGraph.append("g")
+	                .attr("class", "axisY")
+	                .attr("transform", "translate(75, 0)")
+	                .call(yAxis);
+
+
+	            // add the Y gridlines
+	            svgSecondGraph.append("g")
+	                .attr("class", "grid")
+	                .attr("transform", "translate(75, 0)")
+	                .call(make_y_gridlines(paraScale)
+	                    .tickSize(-secondSVGwidth+200)
+	                    .tickFormat("")
+	                );
+
+
+	            var pathGenerator = d3.line()
+	            .curve(d3.curveCardinal)
+	            .x(function (d) { return yearScale(d.Year); })
+	            .y(function (d) { return paraScale(d[parameter]); });
+
+
+	            if (parameter!="Trade") {
+
+	            	plot.append("path")
+					.attr("d", pathGenerator(chinaData))
+					.style("fill", "none")
+					.style("stroke", "#000000")
+					.style("stroke-width", 2)
+					.transition(ease)
+					.duration(1200)
+					.attrTween('d', function(d) {
+						var interpolate = d3.scaleQuantile()
+							.domain([0,1])
+							.range(d3.range(1, chinaData.length+1));
+						return function(t){
+							return pathGenerator(chinaData.slice(0, interpolate(t)));
+						};
+					});
+
+					//tooltip China
+					var tooltipChina = d3.tip()
+						.attr("class", "d3-tip")
+						.offset([-8, 0])
+						.html(function(d) { return "<span class='time'>China " + "(" + d.Year + ")" + "</span><br>" + "<span class='value'>" + formatNum(d[parameter]) + "</span>"; });
+
+					plot.call(tooltipChina);
+
+					var groupCN = svgSecondGraph.append("g")
+						.attr("class", "groupCN");
+
+
+					var circlesCN = groupCN.selectAll("circle").data(chinaData);
+					circlesCN.data(chinaData)
+						.enter().append("circle")
+						.attr("class", "circlesChina")
+						.attr("cx", function(d) { return yearScale(d.Year); })
+						.attr("cy", function(d) { return paraScale(d[parameter]); })
+						.attr("r", 15)
+						.style("opacity", 1e-6)
+						.on("mouseover", tooltipChina.show)
+						.on("mouseout", tooltipChina.hide);
+
+	            }
+
+
+
+	            plot.append("path")
+					.attr("d", pathGenerator(foreignData))
+					.style("fill", "none")
+					.style("stroke", "white")
+					.style("stroke-width", 2)
+					.transition(ease)
+					.duration(1200)
+					.attrTween('d', function(d) {
+						var interpolate = d3.scaleQuantile()
+							.domain([0,1])
+							.range(d3.range(1, foreignData.length+1));
+						return function(t){
+							return pathGenerator(foreignData.slice(0, interpolate(t)));
+						};
+					});
+
+				//tooltip Foreign
+				var tooltipForeign = d3.tip()
+					.attr("class", "d3-tip")
+					.offset([-8, 0])
+					.html(function(d) { return "<span class='time'>" + foreignName + " " + "(" + d.Year + ")" + "</span><br>" + "<span class='value'>" + formatNum(d[parameter]) + "</span>"; });
+
+				plot.call(tooltipForeign);
+
+				var groupForeign = svgSecondGraph.append("g")
+					.attr("class", "groupCN");
+
+
+				var circlesForeign = groupForeign.selectAll("circle").data(foreignData);
+				circlesForeign.data(foreignData)
+					.enter().append("circle")
+					.attr("class", "circlesForeign")
+					.attr("cx", function(d) { return yearScale(d.Year); })
+					.attr("cy", function(d) { return paraScale(d[parameter]); })
+					.attr("r", 15)
+					.style("opacity", 1e-6)
+					.on("mouseover", tooltipForeign.show)
+					.on("mouseout", tooltipForeign.hide);
+
+	        };
+
+
+			function showHistory(data, country) {
+	            svgSecondGraph.selectAll(".eventGroup").remove();
+	            var countryHistory;
+	            var lastX = 0;
+	            var sequenceIndex = 0;
+
+	            data.forEach(function(d) {
+	                if (d.key==country) { countryHistory = d.values; }
+	            })
+
+	            countryHistory.forEach(function(d) {
+	                var textXPosition = yearScale(d.Year);
+	                var textY;
+
+	                var eventGroup = historyAxis.append("g")
+	                .attr("class","eventGroup");
+
+	                if ((textXPosition - lastX) < 80) {
+	                	sequenceIndex ++;
+	                    textY = textYPosition + YPSequence[sequenceIndex%3];
+
+	                } else {
+	                    sequenceIndex = 0;
+	                    textY = textYPosition + YPSequence[sequenceIndex%3];
+	                }
+
+	                eventGroup.append("line")
+					.attr("x1", textXPosition)
+					.attr("y1", lineGraphBottom+50)
+					.attr("x2", textXPosition)
+					.attr("y2", textY-10)
+					.style("stroke", "#b0802a")
+					.style("opacity", .7);
+
+	                eventGroup.append("circle")
+	                .attr("cx",textXPosition)
+	                .attr("cy",yellowAxisPosition+1)
+	                .attr("r", 3)
+	                .attr("fill","rgb(250, 161, 7)");
+
+	                eventGroup.append("text")
+	                .attr("x", textXPosition)
+	                .attr("y", textY)
+	                .attr("text-anchor", "middle")
+	                .text(d.Year)
+	                .attr("fill","rgba(250, 161, 7, 0.7)")
+	                .style("font-size","12px");
+
+
+	                var fObject = eventGroup.append("foreignObject")
+	                    .attr("x", textXPosition-40)
+	                    .attr("y", textY-7)
+	                    .attr("width", 80)
+	                    .attr("height", 50);
+
+	                fObject.append("xhtml:p")
+	                .attr("class","historyEventText")
+	                .attr("xmlns","http://www.w3.org/1999/xhtml")
+	                .style("color","#FAA107")
+	                .style("font-size","9px")
+	                .text("click me?");
+
+
+	                eventGroup
+	                .on("mouseover", function () {
+	                    eventGroup.select('text').attr("opacity", "0.7").style("font-size","19px").attr("y", textY+5);
+	                    eventGroup.select('rect').attr("opacity", "0.7").attr("width",50).attr("x",textXPosition-25);
+	                    eventGroup.select('.historyEventText').style("opacity", "0.7").text(d.Title);;
+	                })
+	                .on("mouseout", function () {
+	                    eventGroup.select('text').attr("opacity", "1").style("font-size","12px").attr("y", textY);
+	                    eventGroup.select('rect').attr("opacity", "1").attr("width",30).attr("x",textXPosition-15);
+	                    eventGroup.select('.historyEventText').style("opacity", "1");
+	                })
+	                .on("click", function () {
+	                    modal.style("display","block");
+	                    historicTitle.text(d.Title);
+	                    historicContent.text(d.Text);
+	                });
+
+	                lastX = textXPosition;
+	            })
+	        }
+
+			</script>
+
+
+<!--			End of the Graph 			-->
+
+		</div>
+	</body>
+</html>
