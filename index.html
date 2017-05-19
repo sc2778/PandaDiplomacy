@@ -539,7 +539,7 @@
 				// Load data
 				d3.queue()
 				.defer(d3.json, "worldmap.json")
-				.defer(d3.csv, "PandaTimeLine1.csv", parseRow)
+				.defer(d3.csv, "PandaTimeline1.csv", parseRow)
 				.defer(d3.csv, "pandaTimeline3.csv", parseRow2)
 	      		.defer(d3.csv, "pandaTimeline2.csv", parseRow2)
 				.await(function(error, rawMap, dataPanda, rawGun,rawGun2) {
@@ -823,7 +823,7 @@
 	        d3.queue()
 				.defer(d3.tsv, "countrydata.txt", parseLineLineGraph)
 				.defer(d3.tsv, "Historyevents.txt", parseLineHistoryEvents)
-				.defer(d3.csv, "PandaTimeLine1.csv", parseRow)
+				.defer(d3.csv, "PandaTimeline1.csv", parseRow)
 				.await(function(error, rawCountryLine, rawHistory, dataPanda) {
 
 		            nestedLineData = d3.nest()
